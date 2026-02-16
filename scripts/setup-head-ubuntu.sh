@@ -7,19 +7,8 @@
 
 set -euo pipefail
 
-LOG_FILE="${SETUP_LOG_FILE:-/var/log/setup-head-ubuntu.log}"
-log() {
-  local t
-  t="$(date -Iseconds 2>/dev/null || date '+%Y-%m-%d %H:%M:%S' 2>/dev/null)"
-  echo "[$t] $*" >> "$LOG_FILE" 2>/dev/null || true
-  echo "[*] $*"
-}
-log_err() {
-  local t
-  t="$(date -Iseconds 2>/dev/null || date '+%Y-%m-%d %H:%M:%S' 2>/dev/null)"
-  echo "[$t] $*" >> "$LOG_FILE" 2>/dev/null || true
-  echo "[!] $*" >&2
-}
+log() { echo "[*] $*"; }
+log_err() { echo "[!] $*" >&2; }
 echo "[*] setup-head-ubuntu.sh started."
 
 # --- Config: key from 1st arg, or env SSH_PUBLIC_KEY, or from this repo ---
@@ -335,8 +324,7 @@ run_vps_audit() {
 # --- Main ---
 main() {
   need_root
-  mkdir -p "$(dirname "$LOG_FILE")"
-  log "setup-head-ubuntu.sh started (log: $LOG_FILE)"
+  log "setup-head-ubuntu.sh started."
 
   if ! is_ubuntu; then
     log_err "This script targets Ubuntu. Aborting."

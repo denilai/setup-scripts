@@ -79,7 +79,6 @@ SSH_CONFIG_HOST=eu-vps SSH_CONFIG_COMMENT="xorek.cloud" RUN_SPEEDTEST=1 RUN_VPS_
 | `SSH_CONFIG_COMMENT` | Однострочный комментарий над блоком Host (например `xorek.cloud` или `RU-EU tunnel`). |
 | `RUN_SPEEDTEST` | Если задана (например `1`), после настройки запускается speedtest с speedtest.artydev.ru. |
 | `RUN_VPS_AUDIT` | Если задана (например `1`), после настройки скачивается и запускается vps-audit (vernu/vps-audit). |
-| `SETUP_LOG_FILE` | Путь к файлу лога. По умолчанию `/var/log/setup-head-ubuntu.log`. Все шаги и ошибки пишутся туда с меткой времени (ISO8601). |
 
 ### Аргументы
 
