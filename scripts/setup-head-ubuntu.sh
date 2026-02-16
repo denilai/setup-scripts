@@ -144,7 +144,9 @@ AllowAgentForwarding no
 PermitUserEnvironment no
 SSHD_EOF
   chmod 644 "$dropin"
-  sshd -t && systemctl reload sshd || { echo "sshd_config invalid, check $dropin" >&2; return 1; }
+  mkdir -p /run/sshd
+  sshd -t || { echo "sshd_config invalid, check $dropin" >&2; return 1; }
+  systemctl reload sshd 2>/dev/null || systemctl restart sshd 2>/dev/null || true
 }
 
 # --- 10. Install and configure fail2ban (sshd jail) ---
@@ -172,8 +174,8 @@ maxretry = 3
 bantime = 1h
 EOF
 
-  systemctl enable --now fail2ban
-  echo "[*] fail2ban enabled (sshd jail, 3 retries, 1h ban)."
+  systemctl enable --now fail2ban 2>/dev/null || true
+  echo "[*] fail2ban configured (sshd jail, 3 retries, 1h ban)."
 }
 
 # --- 11. Print snippet for local ~/.ssh/config ---
@@ -186,8 +188,12 @@ print_ssh_config_snippet() {
   if [[ -z "$hostname_ip" ]] && command -v wget &>/dev/null; then
     hostname_ip="$(wget -qO- --timeout=5 https://ifconfig.me 2>/dev/null || true)"
   fi
-  if [[ -z "$hostname_ip" ]]; then
+  # Reject response if it looks like HTML or multi-word
+  if [[ -z "$hostname_ip" || "$hostname_ip" =~ [\ \<\>] ]]; then
     hostname_ip="$(hostname -I 2>/dev/null | awk '{print $1}' || echo "IP_OR_HOSTNAME")"
+  fi
+  if [[ -z "$hostname_ip" || "$hostname_ip" =~ [\ \<\>] ]]; then
+    hostname_ip="IP_OR_HOSTNAME"
   fi
 
   local host_alias="${SSH_CONFIG_HOST:-$NEW_USER}"
