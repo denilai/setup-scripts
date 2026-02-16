@@ -7,6 +7,19 @@
 
 set -euo pipefail
 
+LOG_FILE="${SETUP_LOG_FILE:-/var/log/setup-head-ubuntu.log}"
+log() {
+  local t
+  t="$(date -Iseconds 2>/dev/null || date '+%Y-%m-%d %H:%M:%S' 2>/dev/null)"
+  echo "[$t] $*" >> "$LOG_FILE" 2>/dev/null || true
+  echo "[*] $*"
+}
+log_err() {
+  local t
+  t="$(date -Iseconds 2>/dev/null || date '+%Y-%m-%d %H:%M:%S' 2>/dev/null)"
+  echo "[$t] $*" >> "$LOG_FILE" 2>/dev/null || true
+  echo "[!] $*" >&2
+}
 echo "[*] setup-head-ubuntu.sh started."
 
 # --- Config: key from 1st arg, or env SSH_PUBLIC_KEY, or from this repo ---
@@ -24,7 +37,7 @@ if [[ -n "$SSH_PUBLIC_KEY_SRC" && -z "$SSH_PUBLIC_KEY" ]]; then
     elif command -v curl &>/dev/null; then
       SSH_PUBLIC_KEY="$(curl -sL "$SSH_PUBLIC_KEY_SRC" 2>/dev/null)" || SSH_PUBLIC_KEY=""
     else
-      echo "Need wget or curl to fetch key from URL." >&2
+      log_err "Need wget or curl to fetch key from URL."
       exit 1
     fi
   else
@@ -42,7 +55,7 @@ NEW_USER="${NEW_USER:-${RANDOM_NAMES[$((RANDOM % ${#RANDOM_NAMES[@]}))]}}"
 # --- Helpers ---
 need_root() {
   if [[ "$(id -u)" -ne 0 ]]; then
-    echo "Run as root or with sudo." >&2
+    log_err "Run as root or with sudo."
     exit 1
   fi
 }
@@ -53,14 +66,14 @@ is_ubuntu() {
 
 # --- 1. System update ---
 system_update() {
-  echo "[*] Updating packages and upgrading system..."
+  log "Updating packages and upgrading system..."
   apt-get update -qq
   DEBIAN_FRONTEND=noninteractive apt-get upgrade -y -qq
 }
 
 # --- 2. Install packages ---
 install_packages() {
-  echo "[*] Installing vim, dnsutils, net-tools, iproute2 (ss)..."
+  log "Installing vim, dnsutils, net-tools, iproute2 (ss)..."
   DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
     vim \
     dnsutils \
@@ -70,7 +83,7 @@ install_packages() {
 
 # --- 3. Disable IPv6, enable IP forwarding (routing through host) ---
 setup_sysctl() {
-  echo "[*] Configuring sysctl: disable IPv6, enable ip_forward..."
+  log "Configuring sysctl: disable IPv6, enable ip_forward..."
   local f="/etc/sysctl.d/90-head-vm.conf"
   cat > "$f" << 'EOF'
 # Disable IPv6
@@ -80,12 +93,12 @@ net.ipv6.conf.default.disable_ipv6 = 1
 net.ipv4.ip_forward = 1
 EOF
   sysctl -p "$f" 2>/dev/null || true
-  echo "[*] sysctl applied (IPv6 off, ip_forward on)."
+  log "sysctl applied (IPv6 off, ip_forward on)."
 }
 
 # --- 4. EDITOR in /etc/environment ---
 set_editor_env() {
-  echo "[*] Setting EDITOR in /etc/environment..."
+  log "Setting EDITOR in /etc/environment..."
   local vim_path
   vim_path="$(command -v vim || echo /usr/bin/vim)"
   if ! grep -q '^EDITOR=' /etc/environment; then
@@ -98,7 +111,7 @@ set_editor_env() {
 
 # --- 5. Sudo group NOPASSWD via sudoers.d (validated with visudo) ---
 sudo_nopasswd() {
-  echo "[*] Configuring %sudo NOPASSWD..."
+  log "Configuring %sudo NOPASSWD..."
   local f="/etc/sudoers.d/90-sudo-nopasswd"
   mkdir -p "$(dirname "$f")"
   echo '%sudo ALL=(ALL) NOPASSWD: ALL' > "$f"
@@ -109,10 +122,10 @@ sudo_nopasswd() {
 # --- 6. Create user (random name), groups docker, -m, -s /bin/bash ---
 create_user() {
   if id "$NEW_USER" &>/dev/null; then
-    echo "[*] User $NEW_USER already exists, skipping creation."
+    log "User $NEW_USER already exists, skipping creation."
     return 0
   fi
-  echo "[*] Creating user: $NEW_USER (groups: sudo, docker), home, shell /bin/bash..."
+  log "Creating user: $NEW_USER (groups: sudo, docker), home, shell /bin/bash..."
   # Ensure docker group exists (create if docker not installed yet)
   getent group docker >/dev/null 2>&1 || groupadd docker
   useradd -m -s /bin/bash -G sudo,docker "$NEW_USER"
@@ -121,10 +134,10 @@ create_user() {
 # --- 7. Add SSH public key for new user ---
 add_ssh_key() {
   if [[ -z "$SSH_PUBLIC_KEY" ]]; then
-    echo "[!] No SSH public key provided. Skip with: SSH_PUBLIC_KEY= or pass a file: $0 /path/to/key.pub" >&2
+    log_err "No SSH public key provided. Skip with: SSH_PUBLIC_KEY= or pass a file: $0 /path/to/key.pub"
     return 0
   fi
-  echo "[*] Adding SSH key for $NEW_USER..."
+  log "Adding SSH key for $NEW_USER..."
   local home
   home="$(getent passwd "$NEW_USER" | cut -d: -f6)"
   mkdir -p "$home/.ssh"
@@ -136,13 +149,13 @@ add_ssh_key() {
 
 # --- 8. Lock root password ---
 lock_root_password() {
-  echo "[*] Locking root password (passwd -l root)..."
+  log "Locking root password (passwd -l root)..."
   passwd -l root
 }
 
 # --- 9. SSH: disable root login, enable pubkey, best practices ---
 harden_sshd() {
-  echo "[*] Hardening sshd (drop-in in sshd_config.d)..."
+  log "Hardening sshd (drop-in in sshd_config.d)..."
   local dir="/etc/ssh/sshd_config.d"
   local dropin="$dir/90-hardening.conf"
   mkdir -p "$dir"
@@ -162,13 +175,13 @@ PermitUserEnvironment no
 SSHD_EOF
   chmod 644 "$dropin"
   mkdir -p /run/sshd
-  sshd -t || { echo "sshd_config invalid, check $dropin" >&2; return 1; }
+  sshd -t || { log_err "sshd_config invalid, check $dropin"; return 1; }
   systemctl reload sshd 2>/dev/null || systemctl restart sshd 2>/dev/null || true
 }
 
 # --- 10. Install and configure fail2ban (sshd jail) ---
 setup_fail2ban() {
-  echo "[*] Installing and configuring fail2ban..."
+  log "Installing and configuring fail2ban..."
   DEBIAN_FRONTEND=noninteractive apt-get install -y -qq fail2ban
 
   local local_jail="/etc/fail2ban/jail.local"
@@ -192,7 +205,7 @@ bantime = 1h
 EOF
 
   systemctl enable --now fail2ban 2>/dev/null || true
-  echo "[*] fail2ban configured (sshd jail, 3 retries, 1h ban)."
+  log "fail2ban configured (sshd jail, 3 retries, 1h ban)."
 }
 
 # --- 11. Print snippet for local ~/.ssh/config ---
@@ -231,27 +244,27 @@ print_ssh_config_snippet() {
 
 # --- 12. Optional: speedtest ---
 run_speedtest() {
-  echo "[*] Running speedtest (speedtest.artydev.ru)..."
+  log "Running speedtest (speedtest.artydev.ru)..."
   if command -v wget &>/dev/null; then
     wget -qO- https://speedtest.artydev.ru | bash
   elif command -v curl &>/dev/null; then
     curl -sL https://speedtest.artydev.ru | bash
   else
-    echo "[!] Need wget or curl for speedtest. Skipped." >&2
+    log_err "Need wget or curl for speedtest. Skipped."
   fi
 }
 
 # --- 13. Optional: vps-audit ---
 run_vps_audit() {
-  echo "[*] Downloading and running vps-audit..."
+  log "Downloading and running vps-audit..."
   local audit_script="/tmp/vps-audit.sh"
   local url="https://raw.githubusercontent.com/vernu/vps-audit/main/vps-audit.sh"
   if command -v wget &>/dev/null; then
-    wget -qO "$audit_script" "$url" || { echo "[!] Failed to download vps-audit. Skipped." >&2; return 0; }
+    wget -qO "$audit_script" "$url" || { log_err "Failed to download vps-audit. Skipped."; return 0; }
   elif command -v curl &>/dev/null; then
-    curl -sL -o "$audit_script" "$url" || { echo "[!] Failed to download vps-audit. Skipped." >&2; return 0; }
+    curl -sL -o "$audit_script" "$url" || { log_err "Failed to download vps-audit. Skipped."; return 0; }
   else
-    echo "[!] Need wget or curl for vps-audit. Skipped." >&2
+    log_err "Need wget or curl for vps-audit. Skipped."
     return 0
   fi
   chmod +x "$audit_script"
@@ -291,27 +304,27 @@ print_ssh_config_snippet() {
 
 # --- 12. Optional: speedtest ---
 run_speedtest() {
-  echo "[*] Running speedtest (speedtest.artydev.ru)..."
+  log "Running speedtest (speedtest.artydev.ru)..."
   if command -v wget &>/dev/null; then
     wget -qO- https://speedtest.artydev.ru | bash
   elif command -v curl &>/dev/null; then
     curl -sL https://speedtest.artydev.ru | bash
   else
-    echo "[!] Need wget or curl for speedtest. Skipped." >&2
+    log_err "Need wget or curl for speedtest. Skipped."
   fi
 }
 
 # --- 13. Optional: vps-audit ---
 run_vps_audit() {
-  echo "[*] Downloading and running vps-audit..."
+  log "Downloading and running vps-audit..."
   local audit_script="/tmp/vps-audit.sh"
   local url="https://raw.githubusercontent.com/vernu/vps-audit/main/vps-audit.sh"
   if command -v wget &>/dev/null; then
-    wget -qO "$audit_script" "$url" || { echo "[!] Failed to download vps-audit. Skipped." >&2; return 0; }
+    wget -qO "$audit_script" "$url" || { log_err "Failed to download vps-audit. Skipped."; return 0; }
   elif command -v curl &>/dev/null; then
-    curl -sL -o "$audit_script" "$url" || { echo "[!] Failed to download vps-audit. Skipped." >&2; return 0; }
+    curl -sL -o "$audit_script" "$url" || { log_err "Failed to download vps-audit. Skipped."; return 0; }
   else
-    echo "[!] Need wget or curl for vps-audit. Skipped." >&2
+    log_err "Need wget or curl for vps-audit. Skipped."
     return 0
   fi
   chmod +x "$audit_script"
@@ -322,16 +335,19 @@ run_vps_audit() {
 # --- Main ---
 main() {
   need_root
+  mkdir -p "$(dirname "$LOG_FILE")"
+  log "setup-head-ubuntu.sh started (log: $LOG_FILE)"
+
   if ! is_ubuntu; then
-    echo "This script targets Ubuntu. Aborting." >&2
+    log_err "This script targets Ubuntu. Aborting."
     exit 1
   fi
 
   # Avoid locking yourself out: we disable root + password auth, so key is required
   if [[ -z "${SKIP_SSH_KEY_CHECK:-}" && -z "$SSH_PUBLIC_KEY" ]]; then
-    echo "WARNING: No SSH public key. After script, only key-based login for $NEW_USER will work." >&2
-    echo "Pass key: $0 ~/.ssh/id_ed25519.pub  or  $0 https://raw.../keys/deploy.pub  or  SSH_PUBLIC_KEY=\"...\" $0" >&2
-    echo "To run anyway: SKIP_SSH_KEY_CHECK=1 $0" >&2
+    log_err "No SSH public key. After script, only key-based login for $NEW_USER will work."
+    log_err "Pass key: $0 ~/.ssh/id_ed25519.pub  or  $0 https://raw.../keys/deploy.pub  or  SSH_PUBLIC_KEY=\"...\" $0"
+    log_err "To run anyway: SKIP_SSH_KEY_CHECK=1 $0"
     exit 1
   fi
 
@@ -348,8 +364,8 @@ main() {
 
   print_ssh_config_snippet
 
-  echo "Done. New sudo+docker user: $NEW_USER"
-  echo "Ensure you can log in as $NEW_USER with your SSH key before closing this session."
+  log "Done. New sudo+docker user: $NEW_USER"
+  log "Ensure you can log in as $NEW_USER with your SSH key before closing this session."
   echo "Override username: NEW_USER=myuser $0"
 
   if [[ -n "${RUN_SPEEDTEST:-}" ]]; then
