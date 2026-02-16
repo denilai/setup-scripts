@@ -2,41 +2,18 @@
 
 Скрипты первичной настройки серверов (Ubuntu).
 
-## Первичная настройка головной VM (Ubuntu)
+## Содержимое
 
-Скрипт ставит пакеты, создаёт пользователя с sudo и docker, настраивает SSH (только ключи, без root), fail2ban и т.д.
+- **scripts/** — скрипты настройки. Подробное описание: [scripts/README.md](scripts/README.md).
+- **keys/** — публичные SSH-ключи для деплоя. Как добавить свой ключ: [keys/README.md](keys/README.md).
 
-### Подготовка (один раз)
+## Быстрый старт: головная VM (Ubuntu)
 
-1. **Добавьте публичный SSH-ключ в репозиторий**  
-   Создайте файл `keys/deploy.pub` с одной строкой — содержимым вашего `~/.ssh/id_ed25519.pub`.  
-   Подробнее: [keys/README.md](keys/README.md).
+1. Один раз добавьте публичный SSH-ключ в репо: файл `keys/deploy.pub` (см. [keys/README.md](keys/README.md)).
+2. На чистом сервере залогиньтесь под **root**, затем:
+   ```bash
+   wget -qO- https://raw.githubusercontent.com/denilai/setup-scripts/master/scripts/setup-head-ubuntu.sh | bash
+   ```
+3. Проверьте вход с вашей машины под новым пользователем по SSH-ключу (имя скрипт выведет в конце). После этого можно закрывать сессию root.
 
-### Запуск на чистом сервере
-
-Залогиньтесь под **root** (по паролю), затем выполните:
-
-```bash
-wget -qO- https://raw.githubusercontent.com/denilai/setup-scripts/master/scripts/setup-head-ubuntu.sh | bash
-```
-
-Ключ по умолчанию берётся из этого репо (`keys/deploy.pub`). На минимальном Ubuntu обычно уже есть `wget`; если нет — сначала: `apt-get update && apt-get install -y wget`.
-
-Если используете форк репо, задайте базовый URL:  
-`REPO_RAW_BASE=https://raw.githubusercontent.com/USER/setup-scripts/master wget -qO- .../setup-head-ubuntu.sh | bash`
-
-**Вариант через clone** (если удобнее клонировать репо):
-
-```bash
-apt-get update && apt-get install -y git
-git clone https://github.com/denilai/setup-scripts.git
-cd setup-scripts
-./scripts/setup-head-ubuntu.sh keys/deploy.pub
-```
-
-После выполнения зайдите с вашей машины под новым пользователем по SSH-ключу (имя пользователя скрипт выведет в конце, например `amber` или `sage`). Убедитесь, что вход работает, прежде чем закрывать сессию root.
-
-### Переменные
-
-- `NEW_USER=myadmin` — задать имя пользователя вместо случайного.
-- Ключ: по умолчанию скачивается из репо (`REPO_RAW_BASE/keys/deploy.pub`). Переопределить: первый аргумент (путь или URL) или переменная `SSH_PUBLIC_KEY`, или `REPO_RAW_BASE` для другого репо.
+Подробности (переменные, альтернативный запуск через clone, форк): [scripts/README.md](scripts/README.md).
