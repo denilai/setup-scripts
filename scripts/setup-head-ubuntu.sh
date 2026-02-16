@@ -7,6 +7,8 @@
 
 set -euo pipefail
 
+echo "[*] setup-head-ubuntu.sh started."
+
 # --- Config: key from 1st arg, or env SSH_PUBLIC_KEY, or from this repo ---
 REPO_RAW_BASE="${REPO_RAW_BASE:-https://raw.githubusercontent.com/denilai/setup-scripts/master}"
 SSH_PUBLIC_KEY_SRC="${1:-}"
@@ -18,9 +20,9 @@ fi
 if [[ -n "$SSH_PUBLIC_KEY_SRC" && -z "$SSH_PUBLIC_KEY" ]]; then
   if [[ "$SSH_PUBLIC_KEY_SRC" =~ ^https?:// ]]; then
     if command -v wget &>/dev/null; then
-      SSH_PUBLIC_KEY="$(wget -qO- "$SSH_PUBLIC_KEY_SRC")"
+      SSH_PUBLIC_KEY="$(wget -qO- "$SSH_PUBLIC_KEY_SRC" 2>/dev/null)" || SSH_PUBLIC_KEY=""
     elif command -v curl &>/dev/null; then
-      SSH_PUBLIC_KEY="$(curl -sL "$SSH_PUBLIC_KEY_SRC")"
+      SSH_PUBLIC_KEY="$(curl -sL "$SSH_PUBLIC_KEY_SRC" 2>/dev/null)" || SSH_PUBLIC_KEY=""
     else
       echo "Need wget or curl to fetch key from URL." >&2
       exit 1

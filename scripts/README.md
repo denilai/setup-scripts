@@ -89,6 +89,8 @@ SSH_CONFIG_HOST=eu-vps SSH_CONFIG_COMMENT="xorek.cloud" RUN_SPEEDTEST=1 RUN_VPS_
 - Перед закрытием сессии root убедитесь, что вход по SSH под новым пользователем с вашим ключом работает.
 - Без добавленного ключа после перезагрузки sshd вы можете потерять доступ к серверу.
 
+**Пустой вывод при запуске через wget \| bash:** значит, скрипт не дошёл до bash (часто wget не смог скачать). Запустите без `-q`, чтобы увидеть ошибку: `wget -O- https://raw.githubusercontent.com/denilai/setup-scripts/master/scripts/setup-head-ubuntu.sh | bash`. Или скачайте и запустите отдельно: `wget -O /tmp/setup.sh https://.../setup-head-ubuntu.sh && bash /tmp/setup.sh`.
+
 ---
 
 ## Другие скрипты
