@@ -14,21 +14,22 @@
 
 1. **Обновление системы** — `apt-get update` и `upgrade`.
 2. **Установка пакетов** — vim, dnsutils, net-tools, iproute2 (в т.ч. `ss`).
-3. **EDITOR** — прописывает `EDITOR=vim` в `/etc/environment`.
-4. **Sudo без пароля** — для группы `%sudo` создаётся `/etc/sudoers.d/90-sudo-nopasswd` (NOPASSWD: ALL), проверка через `visudo -cf`.
-5. **Создание пользователя** — имя по переменной `NEW_USER` или случайное из списка (amber, basil, cedar, …). Группы: `sudo`, `docker`. Группа `docker` создаётся, если её ещё нет. Домашний каталог, shell `/bin/bash`.
-6. **SSH-ключ** — содержимое публичного ключа добавляется в `~/.ssh/authorized_keys` нового пользователя (права 700/600, владелец — пользователь).
-7. **Блокировка root** — `passwd -l root`.
-8. **Жёсткая настройка SSH** — drop-in `/etc/ssh/sshd_config.d/90-hardening.conf`:
+3. **sysctl** — отключение IPv6 (`net.ipv6.conf.all/default.disable_ipv6 = 1`) и включение маршрутизации через хост (`net.ipv4.ip_forward = 1`). Файл `/etc/sysctl.d/90-head-vm.conf`.
+4. **EDITOR** — прописывает `EDITOR=vim` в `/etc/environment`.
+5. **Sudo без пароля** — для группы `%sudo` создаётся `/etc/sudoers.d/90-sudo-nopasswd` (NOPASSWD: ALL), проверка через `visudo -cf`.
+6. **Создание пользователя** — имя по переменной `NEW_USER` или случайное из списка (amber, basil, cedar, …). Группы: `sudo`, `docker`. Группа `docker` создаётся, если её ещё нет. Домашний каталог, shell `/bin/bash`.
+7. **SSH-ключ** — содержимое публичного ключа добавляется в `~/.ssh/authorized_keys` нового пользователя (права 700/600, владелец — пользователь).
+8. **Блокировка root** — `passwd -l root`.
+9. **Жёсткая настройка SSH** — drop-in `/etc/ssh/sshd_config.d/90-hardening.conf`:
    - `PermitRootLogin no`
    - `PubkeyAuthentication yes`, `PasswordAuthentication no`, `PermitEmptyPasswords no`
    - `X11Forwarding no`, `AllowAgentForwarding no`, `PermitUserEnvironment no`
    - `MaxAuthTries 3`, `ClientAliveInterval 300`, `ClientAliveCountMax 2`
    - затем `sshd -t` и `systemctl reload sshd`.
-9. **fail2ban** — установка, включение jail для sshd: `maxretry=3`, `bantime=1h`, `findtime=10m` (DEFAULT в `jail.local`, sshd в `jail.d/sshd.local`), `systemctl enable --now fail2ban`.
-10. **Блок для ~/.ssh/config** — в конце скрипт выводит готовый фрагмент (Host, User, Port, Hostname, IdentityFile). IP или hostname определяется автоматически (сначала публичный IP через ifconfig.me, иначе первый адрес из `hostname -I`). Имя Host и путь к ключу можно задать переменными (см. таблицу).
-11. **Опционально: speedtest** — если задана переменная `RUN_SPEEDTEST`, после настройки выполняется `wget -qO- https://speedtest.artydev.ru | bash`.
-12. **Опционально: vps-audit** — если задана переменная `RUN_VPS_AUDIT`, скачивается и запускается [vps-audit](https://github.com/vernu/vps-audit) (проверка безопасности VPS).
+10. **fail2ban** — установка, включение jail для sshd: `maxretry=3`, `bantime=1h`, `findtime=10m` (DEFAULT в `jail.local`, sshd в `jail.d/sshd.local`), `systemctl enable --now fail2ban`.
+11. **Блок для ~/.ssh/config** — в конце скрипт выводит готовый фрагмент (Host, User, Port, Hostname, IdentityFile). IP или hostname определяется автоматически (сначала публичный IP через ifconfig.me, иначе первый адрес из `hostname -I`). Имя Host и путь к ключу можно задать переменными (см. таблицу).
+12. **Опционально: speedtest** — если задана переменная `RUN_SPEEDTEST`, после настройки выполняется `wget -qO- https://speedtest.artydev.ru | bash`.
+13. **Опционально: vps-audit** — если задана переменная `RUN_VPS_AUDIT`, скачивается и запускается [vps-audit](https://github.com/vernu/vps-audit) (проверка безопасности VPS).
 
 После выполнения вход по паролю и под root отключён; возможен только вход по ключу под созданным пользователем.
 

@@ -66,7 +66,22 @@ install_packages() {
     iproute2
 }
 
-# --- 3. EDITOR in /etc/environment ---
+# --- 3. Disable IPv6, enable IP forwarding (routing through host) ---
+setup_sysctl() {
+  echo "[*] Configuring sysctl: disable IPv6, enable ip_forward..."
+  local f="/etc/sysctl.d/90-head-vm.conf"
+  cat > "$f" << 'EOF'
+# Disable IPv6
+net.ipv6.conf.all.disable_ipv6 = 1
+net.ipv6.conf.default.disable_ipv6 = 1
+# Allow routing through host (NAT, tunnels, etc.)
+net.ipv4.ip_forward = 1
+EOF
+  sysctl -p "$f" 2>/dev/null || true
+  echo "[*] sysctl applied (IPv6 off, ip_forward on)."
+}
+
+# --- 4. EDITOR in /etc/environment ---
 set_editor_env() {
   echo "[*] Setting EDITOR in /etc/environment..."
   local vim_path
@@ -79,7 +94,7 @@ set_editor_env() {
   export EDITOR="$vim_path"
 }
 
-# --- 4. Sudo group NOPASSWD via sudoers.d (validated with visudo) ---
+# --- 5. Sudo group NOPASSWD via sudoers.d (validated with visudo) ---
 sudo_nopasswd() {
   echo "[*] Configuring %sudo NOPASSWD..."
   local f="/etc/sudoers.d/90-sudo-nopasswd"
@@ -89,7 +104,7 @@ sudo_nopasswd() {
   visudo -cf "$f" || { rm -f "$f"; exit 1; }
 }
 
-# --- 5. Create user (random name), groups docker, -m, -s /bin/bash ---
+# --- 6. Create user (random name), groups docker, -m, -s /bin/bash ---
 create_user() {
   if id "$NEW_USER" &>/dev/null; then
     echo "[*] User $NEW_USER already exists, skipping creation."
@@ -101,7 +116,7 @@ create_user() {
   useradd -m -s /bin/bash -G sudo,docker "$NEW_USER"
 }
 
-# --- 6. Add SSH public key for new user ---
+# --- 7. Add SSH public key for new user ---
 add_ssh_key() {
   if [[ -z "$SSH_PUBLIC_KEY" ]]; then
     echo "[!] No SSH public key provided. Skip with: SSH_PUBLIC_KEY= or pass a file: $0 /path/to/key.pub" >&2
@@ -117,13 +132,13 @@ add_ssh_key() {
   chown -R "$NEW_USER:$NEW_USER" "$home/.ssh"
 }
 
-# --- 7. Lock root password ---
+# --- 8. Lock root password ---
 lock_root_password() {
   echo "[*] Locking root password (passwd -l root)..."
   passwd -l root
 }
 
-# --- 8 & 9. SSH: disable root login, enable pubkey, best practices ---
+# --- 9. SSH: disable root login, enable pubkey, best practices ---
 harden_sshd() {
   echo "[*] Hardening sshd (drop-in in sshd_config.d)..."
   local dir="/etc/ssh/sshd_config.d"
@@ -260,6 +275,7 @@ main() {
 
   system_update
   install_packages
+  setup_sysctl
   set_editor_env
   sudo_nopasswd
   create_user
