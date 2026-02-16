@@ -257,6 +257,66 @@ run_vps_audit() {
   rm -f "$audit_script"
 }
 
+# --- 11. Print snippet for local ~/.ssh/config ---
+print_ssh_config_snippet() {
+  local hostname_ip
+  hostname_ip=""
+  if command -v curl &>/dev/null; then
+    hostname_ip="$(curl -s --max-time 5 https://ifconfig.me 2>/dev/null || true)"
+  fi
+  if [[ -z "$hostname_ip" ]] && command -v wget &>/dev/null; then
+    hostname_ip="$(wget -qO- --timeout=5 https://ifconfig.me 2>/dev/null || true)"
+  fi
+  if [[ -z "$hostname_ip" ]]; then
+    hostname_ip="$(hostname -I 2>/dev/null | awk '{print $1}' || echo "IP_OR_HOSTNAME")"
+  fi
+
+  local host_alias="${SSH_CONFIG_HOST:-$NEW_USER}"
+  local identity="${SSH_CONFIG_IDENTITY_FILE:-~/.ssh/id_ed25519}"
+  local comment="${SSH_CONFIG_COMMENT:-}"
+
+  echo ""
+  echo "--- Add to your local ~/.ssh/config ---"
+  echo ""
+  [[ -n "$comment" ]] && echo "# $comment"
+  echo "Host $host_alias"
+  echo "  User $NEW_USER"
+  echo "  Port 22"
+  echo "  Hostname $hostname_ip"
+  echo "  IdentityFile $identity"
+  echo ""
+}
+
+# --- 12. Optional: speedtest ---
+run_speedtest() {
+  echo "[*] Running speedtest (speedtest.artydev.ru)..."
+  if command -v wget &>/dev/null; then
+    wget -qO- https://speedtest.artydev.ru | bash
+  elif command -v curl &>/dev/null; then
+    curl -sL https://speedtest.artydev.ru | bash
+  else
+    echo "[!] Need wget or curl for speedtest. Skipped." >&2
+  fi
+}
+
+# --- 13. Optional: vps-audit ---
+run_vps_audit() {
+  echo "[*] Downloading and running vps-audit..."
+  local audit_script="/tmp/vps-audit.sh"
+  local url="https://raw.githubusercontent.com/vernu/vps-audit/main/vps-audit.sh"
+  if command -v wget &>/dev/null; then
+    wget -qO "$audit_script" "$url" || { echo "[!] Failed to download vps-audit. Skipped." >&2; return 0; }
+  elif command -v curl &>/dev/null; then
+    curl -sL -o "$audit_script" "$url" || { echo "[!] Failed to download vps-audit. Skipped." >&2; return 0; }
+  else
+    echo "[!] Need wget or curl for vps-audit. Skipped." >&2
+    return 0
+  fi
+  chmod +x "$audit_script"
+  "$audit_script"
+  rm -f "$audit_script"
+}
+
 # --- Main ---
 main() {
   need_root
